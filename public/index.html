@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Chat Room</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: transparent;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #chat-container {
+      width: 400px;
+      height: 600px;
+      background-color: #ffffff;
+      border-radius: 10px;
+      /* box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); */
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #chat-header {
+      padding: 15px;
+      background-color: #007BFF;
+      color: white;
+      text-align: left;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    #chat-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      background-color: #f9f9f9;
+      border-top: 1px solid #ddd;
+      scrollbar-width: thin; /* For Firefox */
+      scrollbar-color: #007BFF #f9f9f9; /* For Firefox */
+    }
+    #chat-messages::-webkit-scrollbar {
+      width: 8px;
+    }
+    #chat-messages::-webkit-scrollbar-track {
+      background: #f9f9f9;
+    }
+    #chat-messages::-webkit-scrollbar-thumb {
+      background-color: #007BFF;
+      border-radius: 4px;
+    }
+    #chat-input {
+      display: flex;
+      padding: 10px;
+      gap: 10px;
+      background-color: #e8f1ff;
+    }
+    #message-input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      font-size: 14px;
+      outline: none;
+    }
+    #message-input:focus {
+      border-color: #007BFF;
+    }
+    #send-button {
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    #send-button:hover {
+      background-color: #0056b3;
+    }
+    .message {
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .message .content {
+      max-width: 70%;
+      padding: 10px;
+      border-radius: 10px;
+      word-wrap: break-word;
+      font-size: 14px;
+    }
+    .message.self .content {
+      margin-left: auto;
+      background-color: #d1e7ff;
+      color: #00376b;
+    }
+    .message.other .content {
+      margin-right: auto;
+      background-color: #e1e9f7;
+      color: #00376b;
+    }
+    .message .user {
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+    .message .text {
+      color: #00376b; /* 채팅 내용은 기본 파란 계열 */
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <div id="chat-header">Well-Come Live Chat</div>
+    <div id="chat-messages"></div>
+    <div id="chat-input">
+      <input id="message-input" type="text" placeholder="Type your message..." />
+      <button id="send-button">Send</button>
+    </div>
+  </div>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+  
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBoyQUDC8QFfiH7pXE2iyuKh1nMig_gzhE",
+      authDomain: "wellcome-livechatserver.firebaseapp.com",
+      databaseURL: "https://wellcome-livechatserver-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "wellcome-livechatserver",
+      storageBucket: "wellcome-livechatserver.firebasestorage.app",
+      messagingSenderId: "452512865320",
+      appId: "1:452512865320:web:73209a97e0b68e4015291d",
+    };
+  
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+  
+    // Generate or retrieve user ID and color
+    let userId = sessionStorage.getItem("chatUserId");
+    if (!userId) {
+      userId = `User${Math.floor(Math.random() * 10000)}`;
+      sessionStorage.setItem("chatUserId", userId);
+    }
+
+    let userColor = sessionStorage.getItem("userColor");
+    if (!userColor) {
+      userColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+      sessionStorage.setItem("userColor", userColor);
+    }
+  
+    // DOM elements
+    const chatMessages = document.getElementById("chat-messages");
+    const messageInput = document.getElementById("message-input");
+    const sendButton = document.getElementById("send-button");
+  
+    // Firebase reference
+    const chatRoomRef = ref(database, "chatRoom");
+  
+    // IME 상태 관리
+    let isComposing = false; // 한글 입력 조합 상태
+    let pendingMessage = ""; // 전송 대기 메시지
+  
+    // Function to send a message
+    const sendMessage = () => {
+      const messageText = messageInput.value.trim();
+      if (messageText === "") {
+        console.warn("Message input is empty!");
+        return;
+      }
+      push(chatRoomRef, {
+        user: userId,
+        text: messageText,
+        color: userColor, // 색상 추가
+        timestamp: Date.now(),
+      }).then(() => {
+        console.log("Message sent successfully!");
+      }).catch((error) => {
+        console.error("Error sending message:", error);
+      });
+      messageInput.value = ""; // Clear input field
+    };
+  
+    // Composition events (IME handling)
+    messageInput.addEventListener("compositionstart", () => {
+      isComposing = true;
+      console.log("Composition started");
+    });
+  
+    messageInput.addEventListener("compositionend", (event) => {
+      isComposing = false;
+      console.log("Composition ended");
+      pendingMessage = event.data; // Store the final composed message
+    });
+  
+    // Keydown event for Enter key
+    messageInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !isComposing) {
+        console.log("Enter key pressed");
+        sendMessage();
+      }
+    });
+  
+    // Keyup event to handle pending messages
+    messageInput.addEventListener("keyup", (event) => {
+      if (event.key === "Enter" && pendingMessage && !isComposing) {
+        console.log("Processing pending message:", pendingMessage);
+        sendMessage();
+        pendingMessage = ""; // Clear pending message
+      }
+    });
+  
+    // Send button event listener
+    sendButton.addEventListener("click", sendMessage);
+  
+    // Listen for new messages
+    onChildAdded(chatRoomRef, (snapshot) => {
+      const message = snapshot.val();
+      const messageDiv = document.createElement("div");
+      messageDiv.classList.add("message");
+      messageDiv.classList.add(message.user === userId ? "self" : "other");
+      messageDiv.innerHTML = `
+        <div class="content">
+          <div class="user" style="color: ${message.color}; font-weight: bold;">${message.user}</div>
+          <div class="text">${message.text}</div>
+        </div>
+      `;
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+  </script>
+</body>
+</html>

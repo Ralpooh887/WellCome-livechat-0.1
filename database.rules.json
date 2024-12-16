@@ -1,0 +1,12 @@
+{
+    "rules": {
+      "chatRoom": {
+        ".read": "true",
+        ".write": "true",
+        "$messageId": {
+          ".validate": "newData.child('user').isString() && newData.child('text').isString()"
+        }
+      }
+    }
+  }
+  
